@@ -1,42 +1,29 @@
-#!/bin/bash
 
-V=""
-if [ "${VERBOSE}" = "true" ]; then
-	V='-vv'
+if [ "$COPY_KEY" = "true" ]; then
+	temp_file=$(mktemp)
+	cp $KEY $temp_file
+	trap '{ rm -f -- "$temp_file"; }' EXIT
+	chmod 600 $temp_file
+	KEY=$temp_file
 fi
 
+
 if [ "$REMOTE" != "true" ]; then
-	IFS=',' read -r -a REMOTE_HOST_ARRAY <<< "$REMOTE_HOST"
-	IFS=',' read -r -a LOCAL_PORT_ARRAY <<< "$LOCAL_PORT"
-	IFS=',' read -r -a REMOTE_PORT_ARRAY <<< "$REMOTE_PORT"
-	FORWARDING=""
-	for I in ${!REMOTE_HOST_ARRAY[*]}; do
-		FORWARDING+=" -L *:${LOCAL_PORT_ARRAY[$I]}:${REMOTE_HOST_ARRAY[$I]}:${REMOTE_PORT_ARRAY[$I]}"
-	done
 	ssh \
-		${V} \
+		-vv \
 		-o StrictHostKeyChecking=no \
 		-Nn $TUNNEL_HOST \
 		-p $TUNNEL_PORT \
-		${FORWARDING} \
-		-i $KEY
+		-L *:$LOCAL_PORT:$REMOTE_HOST:$REMOTE_PORT \
+		-i $KEY \
+		-l $USER
 else
-	LOCAL_HOST="0.0.0.0"
-	if [ -n "$LISTEN_HOST" ]; then
-		LOCAL_HOST="$LISTEN_HOST"
-	fi
-	IFS=',' read -r -a CONTAINER_HOST_ARRAY <<< "$CONTAINER_HOST"
-	IFS=',' read -r -a REMOTE_PORT_ARRAY <<< "$REMOTE_PORT"
-	IFS=',' read -r -a CONTAINER_PORT_ARRAY <<< "$CONTAINER_PORT"
-	FORWARDING=""
-	for I in ${!CONTAINER_HOST_ARRAY[*]}; do
-		FORWARDING+=" -R ${LOCAL_HOST}:${REMOTE_PORT_ARRAY[$I]}:${CONTAINER_HOST_ARRAY[$I]}:${CONTAINER_PORT_ARRAY[$I]}"
-	done
 	ssh \
-		${V} \
+		-vv \
 		-o StrictHostKeyChecking=no \
 		-Nn $TUNNEL_HOST \
 		-p $TUNNEL_PORT \
-		${FORWARDING} \
-		-i $KEY
+		-R 0.0.0.0:$REMOTE_PORT:$CONTAINER_HOST:$CONTAINER_PORT \
+		-i $KEY \
+		-l $USER
 fi
